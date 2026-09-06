@@ -1,0 +1,52 @@
+# ==============================================================================
+# CampusX — Docker Compose
+# ==============================================================================
+# Runs the Next.js app on http://localhost:3000 with env vars sourced from
+# a local .env file. Build args forward NEXT_PUBLIC_* vars into the image
+# at build time (they are inlined into the client bundle).
+# ==============================================================================
+
+services:
+  app:
+    container_name: campusx-app
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # Forward public env vars into the build stage so they are inlined
+        # into the client bundle at build time.
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      # Explicit echoes of the key env vars (env_file values are also present,
+      # but listing them makes the contract self-documenting).
+      - NODE_ENV=production
+      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      # Server-only secret — never exposed to the browser.
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      # Optional: used by the analyze-repo edge function (configured in Supabase).
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+    volumes:
+      # Persist the .next cache across rebuilds for faster incremental builds.
+      - .next_cache:/app/.next
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    networks:
+      - campusx-net
+
+networks:
+  campusx-net:
+    driver: bridge
+
+volumes:
+  .next_cache:

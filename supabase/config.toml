@@ -1,0 +1,11 @@
+[functions.analyze-repo]
+verify_jwt = true
+
+[functions.analyze-resume]
+verify_jwt = true
+
+[functions.mock-interview]
+verify_jwt = true
+
+[functions.ai-engine]
+verify_jwt = true
