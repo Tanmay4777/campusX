@@ -116,6 +116,28 @@ export async function createMentorshipRequest(
   message: string,
   goals: string
 ): Promise<{ error: string | null }> {
+  const { data: existing } = await supabase
+    .from('mentorship_requests')
+    .select('id, status')
+    .eq('mentor_id', mentorId)
+    .eq('student_id', studentId)
+    .in('status', ['pending', 'accepted'])
+    .maybeSingle();
+
+  if (existing) {
+    return { error: existing.status === 'pending' ? 'You already have a pending request with this mentor' : 'You are already mentored by this mentor' };
+  }
+
+  const { data: mentor } = await supabase
+    .from('mentor_profiles')
+    .select('max_mentees, current_mentees')
+    .eq('id', mentorId)
+    .maybeSingle();
+
+  if (mentor && mentor.current_mentees >= mentor.max_mentees) {
+    return { error: 'This mentor has reached their maximum mentee capacity' };
+  }
+
   const { error } = await supabase.from('mentorship_requests').insert({
     mentor_id: mentorId,
     student_id: studentId,

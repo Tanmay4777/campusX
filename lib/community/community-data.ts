@@ -138,9 +138,13 @@ export async function toggleLike(
       .eq('post_id', postId)
       .eq('user_id', userId);
     if (error) return { error: error.message, newLiked: true };
+    const { count } = await supabase
+      .from('post_likes')
+      .select('*', { count: 'exact', head: true })
+      .eq('post_id', postId);
     await supabase
       .from('community_posts')
-      .update({ like_count: Math.max(0, (await getLikeCount(postId)) - 1) })
+      .update({ like_count: count ?? 0 })
       .eq('id', postId);
     return { error: null, newLiked: false };
   } else {
@@ -148,20 +152,16 @@ export async function toggleLike(
       .from('post_likes')
       .insert({ post_id: postId, user_id: userId });
     if (error) return { error: error.message, newLiked: false };
+    const { count } = await supabase
+      .from('post_likes')
+      .select('*', { count: 'exact', head: true })
+      .eq('post_id', postId);
     await supabase
       .from('community_posts')
-      .update({ like_count: (await getLikeCount(postId)) + 1 })
+      .update({ like_count: count ?? 0 })
       .eq('id', postId);
     return { error: null, newLiked: true };
   }
-}
-
-async function getLikeCount(postId: string): Promise<number> {
-  const { count } = await supabase
-    .from('post_likes')
-    .select('*', { count: 'exact', head: true })
-    .eq('post_id', postId);
-  return count ?? 0;
 }
 
 export async function fetchReplies(postId: string): Promise<ReplyWithAuthor[]> {

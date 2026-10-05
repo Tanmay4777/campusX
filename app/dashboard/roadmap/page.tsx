@@ -95,9 +95,10 @@ export default function RoadmapPage() {
     if (!roleToLoad) return;
 
     setLoading(true);
+    const userId = user.id;
     async function loadRole() {
       try {
-        const data = await fetchRoadmapForRole(roleToLoad, user.id);
+        const data = await fetchRoadmapForRole(roleToLoad, userId);
         setRoadmapData(data);
         // Auto-expand all phases that have activity
         if (data) {
