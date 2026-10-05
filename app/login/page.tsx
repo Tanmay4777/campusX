@@ -41,14 +41,14 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen flex-col">
       <header className="flex h-16 items-center justify-between border-b px-4">
-        <Link href="/" className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold">
+        <Link href="/" className="flex items-center gap-2.5">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground text-sm font-bold">
             C
           </div>
-          <span className="text-lg font-bold" style={{ fontSize: '19px' }}>
-            <span style={{ fontSize: '26px' }}>CampusX&nbsp;&nbsp;</span>
-            <span style={{ fontSize: '12px' }}>By Tanmay Sah</span>
-          </span>
+          <div className="flex items-baseline gap-2">
+            <span className="text-xl font-bold tracking-tight">CampusX</span>
+            <span className="text-[11px] font-normal text-muted-foreground">By Tanmay Sah</span>
+          </div>
         </Link>
         <ThemeToggle />
       </header>

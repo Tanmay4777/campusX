@@ -85,14 +85,14 @@ export default function LandingPage() {
       {/* Header */}
       <header className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur-lg">
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold">
+          <Link href="/" className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground text-sm font-bold">
               C
             </div>
-            <span className="text-lg font-bold" style={{ fontSize: '19px' }}>
-              <span style={{ fontSize: '26px' }}>CampusX&nbsp;&nbsp;</span>
-              <span style={{ fontSize: '12px' }}>By Tanmay Sah</span>
-            </span>
+            <div className="flex items-baseline gap-2">
+              <span className="text-xl font-bold tracking-tight">CampusX</span>
+              <span className="text-[11px] font-normal text-muted-foreground">By Tanmay Sah</span>
+            </div>
           </Link>
           <nav className="hidden items-center gap-6 md:flex">
             <Link href="#features" className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
@@ -258,14 +258,14 @@ export default function LandingPage() {
         <div className="container mx-auto px-4">
           <div className="grid gap-8 md:grid-cols-4">
             <div className="md:col-span-1">
-              <Link href="/" className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold">
+              <Link href="/" className="flex items-center gap-2.5">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground text-sm font-bold">
                   C
                 </div>
-                <span className="text-lg font-bold" style={{ fontSize: '19px' }}>
-                  <span style={{ fontSize: '26px' }}>CampusX&nbsp;&nbsp;</span>
-                  <span style={{ fontSize: '12px' }}>By Tanmay Sah</span>
-                </span>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-xl font-bold tracking-tight">CampusX</span>
+                  <span className="text-[11px] font-normal text-muted-foreground">By Tanmay Sah</span>
+                </div>
               </Link>
               <p className="mt-3 text-sm text-muted-foreground">
                 Gamified placement and learning platform for college students.
