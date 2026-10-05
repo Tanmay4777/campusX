@@ -68,6 +68,7 @@ export default function TopicDetailPage({ params }: { params: { topicId: string 
   const [topic, setTopic] = useState<TopicDetail | null>(null);
   const [nextTopic, setNextTopic] = useState<TopicWithProgress | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [toggling, setToggling] = useState(false);
 
   useEffect(() => {
@@ -79,14 +80,19 @@ export default function TopicDetailPage({ params }: { params: { topicId: string 
         return;
       }
 
-      const detail = await fetchTopicDetail(topicId, user.id);
-      if (!active) return;
-      setTopic(detail);
-      setLoading(false);
+      try {
+        const detail = await fetchTopicDetail(topicId, user.id);
+        if (!active) return;
+        setTopic(detail);
 
-      if (detail) {
-        const next = await getRecommendedNextTopicForSkill(user.id, detail.skill, topicId);
-        if (active) setNextTopic(next);
+        if (detail) {
+          const next = await getRecommendedNextTopicForSkill(user.id, detail.skill, topicId);
+          if (active) setNextTopic(next);
+        }
+      } catch {
+        if (active) setError('Failed to load data. Please try again.');
+      } finally {
+        if (active) setLoading(false);
       }
     }
 
@@ -96,64 +102,88 @@ export default function TopicDetailPage({ params }: { params: { topicId: string 
 
   const handleStart = async () => {
     if (!user || !topic) return;
-    const { error } = await markTopicInProgress(user.id, topic.id);
-    if (error) {
-      toast({ title: 'Error', description: error, variant: 'destructive' });
-      return;
+    try {
+      const { error } = await markTopicInProgress(user.id, topic.id);
+      if (error) {
+        toast({ title: 'Error', description: error, variant: 'destructive' });
+        return;
+      }
+      setTopic({ ...topic, status: 'in-progress' });
+    } catch {
+      toast({ title: 'Error', description: 'Failed to load data. Please try again.', variant: 'destructive' });
     }
-    setTopic({ ...topic, status: 'in-progress' });
   };
 
   const handleComplete = async () => {
     if (!user || !topic) return;
     setToggling(true);
 
-    const wasCompleted = topic.status === 'completed';
+    try {
+      const wasCompleted = topic.status === 'completed';
 
-    if (wasCompleted) {
-      const { error } = await unmarkTopicCompleted(user.id, topic.id);
-      if (error) {
-        toast({ title: 'Error', description: error, variant: 'destructive' });
-        setToggling(false);
+      if (wasCompleted) {
+        const { error } = await unmarkTopicCompleted(user.id, topic.id);
+        if (error) {
+          toast({ title: 'Error', description: error, variant: 'destructive' });
+          return;
+        }
+        setTopic({ ...topic, status: 'not-started', completedAt: null });
+        toast({ title: 'Topic reopened', description: `"${topic.title}" marked as incomplete` });
         return;
       }
-      setTopic({ ...topic, status: 'not-started', completedAt: null });
-      toast({ title: 'Topic reopened', description: `"${topic.title}" marked as incomplete` });
+
+      const xpEarned = calculateTopicXp(topic);
+      const { error } = await markTopicCompleted(user.id, topic.id, xpEarned);
+      if (error) {
+        toast({ title: 'Error', description: error, variant: 'destructive' });
+        return;
+      }
+
+      const result = await awardXp(user.id, xpEarned, {
+        type: 'learning',
+        title: `Topic completed: ${topic.title}`,
+        description: `${topic.skill} · ${topic.difficulty}`,
+      });
+
+      if (result.achievements.length > 0) {
+        notify(result.achievements);
+      }
+
+      await refreshProfile();
+      setTopic({ ...topic, status: 'completed', completedAt: new Date().toISOString() });
+      toast({
+        title: 'Topic completed!',
+        description: `+${xpEarned} XP earned for "${topic.title}"`,
+      });
+    } catch {
+      toast({ title: 'Error', description: 'Failed to load data. Please try again.', variant: 'destructive' });
+    } finally {
       setToggling(false);
-      return;
     }
-
-    const xpEarned = calculateTopicXp(topic);
-    const { error } = await markTopicCompleted(user.id, topic.id, xpEarned);
-    if (error) {
-      toast({ title: 'Error', description: error, variant: 'destructive' });
-      setToggling(false);
-      return;
-    }
-
-    const result = await awardXp(user.id, xpEarned, {
-      type: 'learning',
-      title: `Topic completed: ${topic.title}`,
-      description: `${topic.skill} · ${topic.difficulty}`,
-    });
-
-    if (result.achievements.length > 0) {
-      notify(result.achievements);
-    }
-
-    await refreshProfile();
-    setTopic({ ...topic, status: 'completed', completedAt: new Date().toISOString() });
-    toast({
-      title: 'Topic completed!',
-      description: `+${xpEarned} XP earned for "${topic.title}"`,
-    });
-    setToggling(false);
   };
 
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
         <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <Button variant="ghost" size="sm" asChild>
+          <Link href="/dashboard/learning">
+            <ArrowLeft className="mr-1 h-4 w-4" />
+            Back to Learning
+          </Link>
+        </Button>
+        <Card>
+          <CardContent className="py-12 text-center text-muted-foreground">
+            {error}
+          </CardContent>
+        </Card>
       </div>
     );
   }

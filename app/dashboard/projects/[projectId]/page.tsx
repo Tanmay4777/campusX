@@ -59,16 +59,22 @@ export default function ProjectDetailPage({ params }: { params: { projectId: str
   const [githubUrl, setGithubUrl] = useState('');
   const [saving, setSaving] = useState(false);
   const [completing, setCompleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const loadProject = useCallback(async () => {
     if (!user) {
       setLoading(false);
       return;
     }
-    const detail = await fetchProjectDetail(projectId, user.id);
-    setProject(detail);
-    setGithubUrl(detail?.githubUrl ?? '');
-    setLoading(false);
+    try {
+      const detail = await fetchProjectDetail(projectId, user.id);
+      setProject(detail);
+      setGithubUrl(detail?.githubUrl ?? '');
+    } catch {
+      setError('Failed to load data. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   }, [user, projectId]);
 
   useEffect(() => {
@@ -78,24 +84,33 @@ export default function ProjectDetailPage({ params }: { params: { projectId: str
   const handleStart = async () => {
     if (!user || !project) return;
     setSaving(true);
-    const { error } = await startProject(user.id, project.id);
-    if (error) {
-      toast({ title: 'Error', description: error, variant: 'destructive' });
-    } else {
-      setProject({ ...project, userStatus: 'in-progress', progressPct: 10 });
-      toast({ title: 'Project started', description: 'Time to build something great!' });
+    try {
+      const { error } = await startProject(user.id, project.id);
+      if (error) {
+        toast({ title: 'Error', description: error, variant: 'destructive' });
+      } else {
+        setProject({ ...project, userStatus: 'in-progress', progressPct: 10 });
+        toast({ title: 'Project started', description: 'Time to build something great!' });
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Failed to load data. Please try again.', variant: 'destructive' });
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
   const handleProgressUpdate = async (newPct: number) => {
     if (!user || !project) return;
-    const { error } = await updateProjectProgress(user.id, project.id, newPct);
-    if (error) {
-      toast({ title: 'Error', description: error, variant: 'destructive' });
-      return;
+    try {
+      const { error } = await updateProjectProgress(user.id, project.id, newPct);
+      if (error) {
+        toast({ title: 'Error', description: error, variant: 'destructive' });
+        return;
+      }
+      setProject({ ...project, progressPct: newPct });
+    } catch {
+      toast({ title: 'Error', description: 'Failed to load data. Please try again.', variant: 'destructive' });
     }
-    setProject({ ...project, progressPct: newPct });
   };
 
   const handleSaveGithub = async () => {
@@ -105,14 +120,19 @@ export default function ProjectDetailPage({ params }: { params: { projectId: str
       return;
     }
     setSaving(true);
-    const { error } = await submitGitHubUrl(user.id, project.id, githubUrl);
-    if (error) {
-      toast({ title: 'Error', description: error, variant: 'destructive' });
-    } else {
-      setProject({ ...project, githubUrl });
-      toast({ title: 'GitHub URL saved', description: 'Your repository link has been updated' });
+    try {
+      const { error } = await submitGitHubUrl(user.id, project.id, githubUrl);
+      if (error) {
+        toast({ title: 'Error', description: error, variant: 'destructive' });
+      } else {
+        setProject({ ...project, githubUrl });
+        toast({ title: 'GitHub URL saved', description: 'Your repository link has been updated' });
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Failed to load data. Please try again.', variant: 'destructive' });
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
   const handleComplete = async () => {
@@ -122,48 +142,74 @@ export default function ProjectDetailPage({ params }: { params: { projectId: str
       return;
     }
     setCompleting(true);
-    const { error } = await completeProject(user.id, project.id, githubUrl);
-    if (error) {
-      toast({ title: 'Error', description: error, variant: 'destructive' });
+    try {
+      const { error } = await completeProject(user.id, project.id, githubUrl);
+      if (error) {
+        toast({ title: 'Error', description: error, variant: 'destructive' });
+        return;
+      }
+
+      const result = await awardXp(user.id, project.xp_reward, {
+        type: 'project',
+        title: `Project completed: ${project.title}`,
+        description: `${project.difficulty} · ${project.category}`,
+      });
+
+      if (result.achievements.length > 0) {
+        notify(result.achievements);
+      }
+
+      await refreshProfile();
+      setProject({ ...project, userStatus: 'completed', progressPct: 100, githubUrl });
+      toast({
+        title: 'Project completed!',
+        description: `+${project.xp_reward} XP earned for "${project.title}"`,
+      });
+    } catch {
+      toast({ title: 'Error', description: 'Failed to load data. Please try again.', variant: 'destructive' });
+    } finally {
       setCompleting(false);
-      return;
     }
-
-    const result = await awardXp(user.id, project.xp_reward, {
-      type: 'project',
-      title: `Project completed: ${project.title}`,
-      description: `${project.difficulty} · ${project.category}`,
-    });
-
-    if (result.achievements.length > 0) {
-      notify(result.achievements);
-    }
-
-    await refreshProfile();
-    setProject({ ...project, userStatus: 'completed', progressPct: 100, githubUrl });
-    toast({
-      title: 'Project completed!',
-      description: `+${project.xp_reward} XP earned for "${project.title}"`,
-    });
-    setCompleting(false);
   };
 
   const handleAbandon = async () => {
     if (!user || !project) return;
-    const { error } = await abandonProject(user.id, project.id);
-    if (error) {
-      toast({ title: 'Error', description: error, variant: 'destructive' });
-      return;
+    try {
+      const { error } = await abandonProject(user.id, project.id);
+      if (error) {
+        toast({ title: 'Error', description: error, variant: 'destructive' });
+        return;
+      }
+      setProject({ ...project, userStatus: 'not-started', progressPct: 0, githubUrl: '' });
+      setGithubUrl('');
+      toast({ title: 'Project reset', description: 'You can start this project again anytime' });
+    } catch {
+      toast({ title: 'Error', description: 'Failed to load data. Please try again.', variant: 'destructive' });
     }
-    setProject({ ...project, userStatus: 'not-started', progressPct: 0, githubUrl: '' });
-    setGithubUrl('');
-    toast({ title: 'Project reset', description: 'You can start this project again anytime' });
   };
 
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
         <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <Button variant="ghost" size="sm" asChild>
+          <Link href="/dashboard/projects">
+            <ArrowLeft className="mr-1 h-4 w-4" />
+            Back to Projects
+          </Link>
+        </Button>
+        <Card>
+          <CardContent className="py-12 text-center text-muted-foreground">
+            {error}
+          </CardContent>
+        </Card>
       </div>
     );
   }

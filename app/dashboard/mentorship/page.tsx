@@ -57,6 +57,7 @@ export default function MentorshipPage() {
   // browse state
   const [mentors, setMentors] = useState<MentorWithStats[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [skillFilter, setSkillFilter] = useState('all');
 
@@ -83,9 +84,14 @@ export default function MentorshipPage() {
   const loadMentors = useCallback(async () => {
     if (!user) { setLoading(false); return; }
     setLoading(true);
-    const data = await fetchMentors(searchQuery, skillFilter, user.id);
-    setMentors(data);
-    setLoading(false);
+    try {
+      const data = await fetchMentors(searchQuery, skillFilter, user.id);
+      setMentors(data);
+    } catch (err) {
+      setError('Failed to load data. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   }, [user, searchQuery, skillFilter]);
 
   useEffect(() => {
@@ -96,15 +102,20 @@ export default function MentorshipPage() {
   const loadRequests = useCallback(async () => {
     if (!user) return;
     setLoadingRequests(true);
-    const [sent, received, mentorStatus] = await Promise.all([
-      fetchMyMentorshipRequests(user.id),
-      fetchReceivedMentorshipRequests(user.id),
-      checkIsMentor(user.id),
-    ]);
-    setMyRequests(sent);
-    setReceivedRequests(received);
-    setIsMentor(mentorStatus);
-    setLoadingRequests(false);
+    try {
+      const [sent, received, mentorStatus] = await Promise.all([
+        fetchMyMentorshipRequests(user.id),
+        fetchReceivedMentorshipRequests(user.id),
+        checkIsMentor(user.id),
+      ]);
+      setMyRequests(sent);
+      setReceivedRequests(received);
+      setIsMentor(mentorStatus);
+    } catch (err) {
+      setError('Failed to load data. Please try again.');
+    } finally {
+      setLoadingRequests(false);
+    }
   }, [user]);
 
   useEffect(() => {
@@ -118,18 +129,23 @@ export default function MentorshipPage() {
       return;
     }
     setSubmitting(true);
-    const { error } = await createMentorshipRequest(
-      selectedMentor.id, user.id, requestMessage, requestGoals
-    );
-    setSubmitting(false);
-    if (error) {
-      toast({ title: 'Failed to send request', description: error, variant: 'destructive' });
-      return;
+    try {
+      const { error } = await createMentorshipRequest(
+        selectedMentor.id, user.id, requestMessage, requestGoals
+      );
+      if (error) {
+        toast({ title: 'Failed to send request', description: error, variant: 'destructive' });
+        return;
+      }
+      toast({ title: 'Mentorship request sent!' });
+      setSelectedMentor(null);
+      setRequestMessage(''); setRequestGoals('');
+      loadMentors(); loadRequests();
+    } catch (err) {
+      setError('Failed to load data. Please try again.');
+    } finally {
+      setSubmitting(false);
     }
-    toast({ title: 'Mentorship request sent!' });
-    setSelectedMentor(null);
-    setRequestMessage(''); setRequestGoals('');
-    loadMentors(); loadRequests();
   };
 
   const handleRespond = async (requestId: string, status: 'accepted' | 'rejected') => {
@@ -161,25 +177,30 @@ export default function MentorshipPage() {
       return;
     }
     setCreatingMentor(true);
-    const { error } = await createMentorProfile(
-      user.id,
-      profile.full_name,
-      mentorForm.bio,
-      mentorForm.company,
-      mentorForm.role,
-      mentorForm.skills,
-      mentorForm.specializations,
-      mentorForm.experienceYears,
-      mentorForm.linkedinUrl,
-    );
-    setCreatingMentor(false);
-    if (error) {
-      toast({ title: 'Failed to create mentor profile', description: error, variant: 'destructive' });
-      return;
+    try {
+      const { error } = await createMentorProfile(
+        user.id,
+        profile.full_name,
+        mentorForm.bio,
+        mentorForm.company,
+        mentorForm.role,
+        mentorForm.skills,
+        mentorForm.specializations,
+        mentorForm.experienceYears,
+        mentorForm.linkedinUrl,
+      );
+      if (error) {
+        toast({ title: 'Failed to create mentor profile', description: error, variant: 'destructive' });
+        return;
+      }
+      toast({ title: 'You are now a mentor!' });
+      setShowMentorForm(false);
+      loadRequests();
+    } catch (err) {
+      setError('Failed to load data. Please try again.');
+    } finally {
+      setCreatingMentor(false);
     }
-    toast({ title: 'You are now a mentor!' });
-    setShowMentorForm(false);
-    loadRequests();
   };
 
   const toggleSkill = (skill: string, field: 'skills' | 'specializations') => {

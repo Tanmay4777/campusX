@@ -42,6 +42,7 @@ export default function AdminPlacementsPage() {
   const isAdmin = profile?.role === 'admin';
 
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [analytics, setAnalytics] = useState<AdminAnalytics | null>(null);
   const [students, setStudents] = useState<StudentReadiness[]>([]);
   const [jobs, setJobs] = useState<{ id: string; company: string; title: string; is_active: boolean; application_count: number; deadline: string; package_lpa: number }[]>([]);
@@ -70,21 +71,27 @@ export default function AdminPlacementsPage() {
 
   const loadAll = useCallback(async () => {
     setLoading(true);
-    const [a, s, j, ann, asss, apps] = await Promise.all([
-      fetchAdminAnalytics(),
-      fetchStudentReadiness(),
-      fetchAllJobsAdmin(),
-      fetchAnnouncements(),
-      fetchPlacementAssessments(),
-      fetchAllApplicationsAdmin(),
-    ]);
-    setAnalytics(a);
-    setStudents(s);
-    setJobs(j as typeof jobs);
-    setAnnouncements(ann);
-    setAssessments(asss);
-    setAllApps(apps);
-    setLoading(false);
+    setError(null);
+    try {
+      const [a, s, j, ann, asss, apps] = await Promise.all([
+        fetchAdminAnalytics(),
+        fetchStudentReadiness(),
+        fetchAllJobsAdmin(),
+        fetchAnnouncements(),
+        fetchPlacementAssessments(),
+        fetchAllApplicationsAdmin(),
+      ]);
+      setAnalytics(a);
+      setStudents(s);
+      setJobs(j as typeof jobs);
+      setAnnouncements(ann);
+      setAssessments(asss);
+      setAllApps(apps);
+    } catch {
+      setError('Failed to load data. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { loadAll(); }, [loadAll]);
@@ -96,27 +103,32 @@ export default function AdminPlacementsPage() {
       return;
     }
     setSubmittingJob(true);
-    const { error } = await createJob(user.id, {
-      company: jobForm.company,
-      title: jobForm.title,
-      description: jobForm.description,
-      location: jobForm.location,
-      jobType: jobForm.jobType,
-      role: jobForm.role,
-      requiredSkills: jobForm.requiredSkills.split(',').map((s) => s.trim()).filter(Boolean),
-      preferredSkills: jobForm.preferredSkills.split(',').map((s) => s.trim()).filter(Boolean),
-      minCgpa: parseFloat(jobForm.minCgpa) || 0,
-      eligibleYears: jobForm.eligibleYears.split(',').map((s) => s.trim()).filter(Boolean),
-      eligibleBranches: jobForm.eligibleBranches.split(',').map((s) => s.trim()).filter(Boolean),
-      packageLpa: parseFloat(jobForm.packageLpa) || 0,
-      deadline: jobForm.deadline || new Date(Date.now() + 30 * 86400000).toISOString(),
-    });
-    setSubmittingJob(false);
-    if (error) { toast({ title: 'Failed to create job', description: error, variant: 'destructive' }); return; }
-    toast({ title: 'Job posted!' });
-    setJobForm({ company: '', title: '', description: '', location: '', jobType: 'full-time', role: '', requiredSkills: '', preferredSkills: '', minCgpa: '6.0', eligibleYears: '', eligibleBranches: '', packageLpa: '0', deadline: '' });
-    setShowJobForm(false);
-    loadAll();
+    try {
+      const { error } = await createJob(user.id, {
+        company: jobForm.company,
+        title: jobForm.title,
+        description: jobForm.description,
+        location: jobForm.location,
+        jobType: jobForm.jobType,
+        role: jobForm.role,
+        requiredSkills: jobForm.requiredSkills.split(',').map((s) => s.trim()).filter(Boolean),
+        preferredSkills: jobForm.preferredSkills.split(',').map((s) => s.trim()).filter(Boolean),
+        minCgpa: parseFloat(jobForm.minCgpa) || 0,
+        eligibleYears: jobForm.eligibleYears.split(',').map((s) => s.trim()).filter(Boolean),
+        eligibleBranches: jobForm.eligibleBranches.split(',').map((s) => s.trim()).filter(Boolean),
+        packageLpa: parseFloat(jobForm.packageLpa) || 0,
+        deadline: jobForm.deadline || new Date(Date.now() + 30 * 86400000).toISOString(),
+      });
+      if (error) { toast({ title: 'Failed to create job', description: error, variant: 'destructive' }); return; }
+      toast({ title: 'Job posted!' });
+      setJobForm({ company: '', title: '', description: '', location: '', jobType: 'full-time', role: '', requiredSkills: '', preferredSkills: '', minCgpa: '6.0', eligibleYears: '', eligibleBranches: '', packageLpa: '0', deadline: '' });
+      setShowJobForm(false);
+      loadAll();
+    } catch {
+      toast({ title: 'Failed to create job', description: 'Something went wrong. Please try again.', variant: 'destructive' });
+    } finally {
+      setSubmittingJob(false);
+    }
   };
 
   const handleToggleJob = async (jobId: string, isActive: boolean) => {
@@ -136,13 +148,18 @@ export default function AdminPlacementsPage() {
     if (!user) return;
     if (!annForm.title.trim()) { toast({ title: 'Title required', variant: 'destructive' }); return; }
     setSubmittingAnn(true);
-    const { error } = await createAnnouncement(user.id, annForm.title, annForm.content, annForm.type, annForm.priority);
-    setSubmittingAnn(false);
-    if (error) { toast({ title: 'Failed to create', description: error, variant: 'destructive' }); return; }
-    toast({ title: 'Announcement posted!' });
-    setAnnForm({ title: '', content: '', type: 'info', priority: 'normal' });
-    setShowAnnForm(false);
-    loadAll();
+    try {
+      const { error } = await createAnnouncement(user.id, annForm.title, annForm.content, annForm.type, annForm.priority);
+      if (error) { toast({ title: 'Failed to create', description: error, variant: 'destructive' }); return; }
+      toast({ title: 'Announcement posted!' });
+      setAnnForm({ title: '', content: '', type: 'info', priority: 'normal' });
+      setShowAnnForm(false);
+      loadAll();
+    } catch {
+      toast({ title: 'Failed to create', description: 'Something went wrong. Please try again.', variant: 'destructive' });
+    } finally {
+      setSubmittingAnn(false);
+    }
   };
 
   const handleDeleteAnn = async (id: string) => {
@@ -156,19 +173,24 @@ export default function AdminPlacementsPage() {
     if (!user) return;
     if (!assessForm.title.trim()) { toast({ title: 'Title required', variant: 'destructive' }); return; }
     setSubmittingAssess(true);
-    const { error } = await createPlacementAssessment(user.id, {
-      title: assessForm.title,
-      description: assessForm.description,
-      testType: assessForm.testType,
-      durationMinutes: parseInt(assessForm.durationMinutes) || 60,
-      deadline: assessForm.deadline || new Date(Date.now() + 7 * 86400000).toISOString(),
-    });
-    setSubmittingAssess(false);
-    if (error) { toast({ title: 'Failed to create', description: error, variant: 'destructive' }); return; }
-    toast({ title: 'Assessment created!' });
-    setAssessForm({ title: '', description: '', testType: 'aptitude', durationMinutes: '60', deadline: '' });
-    setShowAssessForm(false);
-    loadAll();
+    try {
+      const { error } = await createPlacementAssessment(user.id, {
+        title: assessForm.title,
+        description: assessForm.description,
+        testType: assessForm.testType,
+        durationMinutes: parseInt(assessForm.durationMinutes) || 60,
+        deadline: assessForm.deadline || new Date(Date.now() + 7 * 86400000).toISOString(),
+      });
+      if (error) { toast({ title: 'Failed to create', description: error, variant: 'destructive' }); return; }
+      toast({ title: 'Assessment created!' });
+      setAssessForm({ title: '', description: '', testType: 'aptitude', durationMinutes: '60', deadline: '' });
+      setShowAssessForm(false);
+      loadAll();
+    } catch {
+      toast({ title: 'Failed to create', description: 'Something went wrong. Please try again.', variant: 'destructive' });
+    } finally {
+      setSubmittingAssess(false);
+    }
   };
 
   const handleDeleteAssess = async (id: string) => {
@@ -202,6 +224,21 @@ export default function AdminPlacementsPage() {
 
   if (loading) {
     return <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-4 py-20 text-center animate-fade-in">
+        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-destructive/10">
+          <AlertTriangle className="h-7 w-7 text-destructive" />
+        </div>
+        <div>
+          <h1 className="text-lg font-semibold">Failed to load data</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{error}</p>
+        </div>
+        <Button variant="outline" onClick={() => loadAll()}>Try again</Button>
+      </div>
+    );
   }
 
   return (

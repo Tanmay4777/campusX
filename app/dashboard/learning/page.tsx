@@ -47,6 +47,7 @@ export default function LearningPage() {
   const [filter, setFilter] = useState('All');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -58,15 +59,20 @@ export default function LearningPage() {
         return;
       }
 
-      const [allTopics, rec] = await Promise.all([
-        fetchAllTopics(user.id),
-        getRecommendedNextTopic(user.id),
-      ]);
+      try {
+        const [allTopics, rec] = await Promise.all([
+          fetchAllTopics(user.id),
+          getRecommendedNextTopic(user.id),
+        ]);
 
-      if (!active) return;
-      setTopics(allTopics);
-      setRecommended(rec);
-      setLoading(false);
+        if (!active) return;
+        setTopics(allTopics);
+        setRecommended(rec);
+      } catch {
+        if (active) setError('Failed to load data. Please try again.');
+      } finally {
+        if (active) setLoading(false);
+      }
     }
 
     load();
@@ -90,6 +96,19 @@ export default function LearningPage() {
     return (
       <div className="flex items-center justify-center py-20">
         <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Learning</h1>
+        <Card>
+          <CardContent className="py-12 text-center text-muted-foreground">
+            {error}
+          </CardContent>
+        </Card>
       </div>
     );
   }

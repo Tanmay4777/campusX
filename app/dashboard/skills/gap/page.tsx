@@ -61,14 +61,19 @@ export default function SkillGapPage() {
   const [error, setError] = useState<string | null>(null);
 
   const loadRoles = useCallback(async () => {
-    const roleData = await fetchTargetRoles();
-    setRoles(roleData);
-    if (profile?.target_role && roleData.some((r) => r.role === profile.target_role)) {
-      setSelectedRole(profile.target_role);
-    } else if (roleData.length > 0) {
-      setSelectedRole(roleData[0].role);
+    try {
+      const roleData = await fetchTargetRoles();
+      setRoles(roleData);
+      if (profile?.target_role && roleData.some((r) => r.role === profile.target_role)) {
+        setSelectedRole(profile.target_role);
+      } else if (roleData.length > 0) {
+        setSelectedRole(roleData[0].role);
+      }
+    } catch {
+      setError('Failed to load data. Please try again.');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, [profile]);
 
   useEffect(() => {
@@ -79,13 +84,18 @@ export default function SkillGapPage() {
     if (!user || !selectedRole) return;
     setAnalyzing(true);
     setError(null);
-    const result = await analyzeSkillGap(user.id, selectedRole);
-    if (result.error) {
-      setError(result.error);
-    } else {
-      setAnalysis(result);
+    try {
+      const result = await analyzeSkillGap(user.id, selectedRole);
+      if (result.error) {
+        setError(result.error);
+      } else {
+        setAnalysis(result);
+      }
+    } catch {
+      setError('Failed to load data. Please try again.');
+    } finally {
+      setAnalyzing(false);
     }
-    setAnalyzing(false);
   }, [user, selectedRole]);
 
   useEffect(() => {

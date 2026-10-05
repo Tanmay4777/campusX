@@ -87,6 +87,7 @@ export default function InterviewPage() {
   const [activeTab, setActiveTab] = useState('practice');
   const [history, setHistory] = useState<InterviewHistoryRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const [phase, setPhase] = useState<Phase>('select');
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
@@ -104,9 +105,14 @@ export default function InterviewPage() {
       setLoading(false);
       return;
     }
-    const data = await fetchInterviewHistory(user.id);
-    setHistory(data);
-    setLoading(false);
+    try {
+      const data = await fetchInterviewHistory(user.id);
+      setHistory(data);
+    } catch (err) {
+      setError('Failed to load data. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   }, [user]);
 
   useEffect(() => {
@@ -124,36 +130,40 @@ export default function InterviewPage() {
     setStarting(true);
     setSelectedCategory(category);
 
-    let skillGaps: string[] = [];
-    if (profile?.target_role) {
-      const gapResult = await analyzeSkillGap(user.id, profile.target_role);
-      skillGaps = gapResult.missingSkills;
-    }
+    try {
+      let skillGaps: string[] = [];
+      if (profile?.target_role) {
+        const gapResult = await analyzeSkillGap(user.id, profile.target_role);
+        skillGaps = gapResult.missingSkills;
+      }
 
-    const { questions: qs, error } = await startInterview(
-      category.id,
-      profile?.target_role ?? '',
-      skillGaps,
-      user.id
-    );
+      const { questions: qs, error } = await startInterview(
+        category.id,
+        profile?.target_role ?? '',
+        skillGaps,
+        user.id
+      );
 
-    if (error || !qs || qs.length === 0) {
-      toast({
-        title: 'Could not start interview',
-        description: error ?? 'No questions available for this category.',
-        variant: 'destructive',
-      });
+      if (error || !qs || qs.length === 0) {
+        toast({
+          title: 'Could not start interview',
+          description: error ?? 'No questions available for this category.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      setQuestions(qs);
+      setCurrentQ(0);
+      setChat([{ role: 'interviewer', content: qs[0].question, questionIndex: 0 }]);
+      setAnswer('');
+      setPhase('chat');
+      setStartTime(Date.now());
+    } catch (err) {
+      setError('Failed to load data. Please try again.');
+    } finally {
       setStarting(false);
-      return;
     }
-
-    setQuestions(qs);
-    setCurrentQ(0);
-    setChat([{ role: 'interviewer', content: qs[0].question, questionIndex: 0 }]);
-    setAnswer('');
-    setPhase('chat');
-    setStartTime(Date.now());
-    setStarting(false);
   };
 
   const handleNextQuestion = () => {
@@ -184,43 +194,47 @@ export default function InterviewPage() {
     if (!user || !selectedCategory) return;
     setSubmitting(true);
 
-    const answers = finalChat
-      .filter((m) => m.role === 'candidate')
-      .map((m) => ({
-        question_id: questions[m.questionIndex ?? 0].id,
-        answer: m.content,
-      }));
+    try {
+      const answers = finalChat
+        .filter((m) => m.role === 'candidate')
+        .map((m) => ({
+          question_id: questions[m.questionIndex ?? 0].id,
+          answer: m.content,
+        }));
 
-    const durationMin = Math.max(1, Math.round((Date.now() - startTime) / 60000));
+      const durationMin = Math.max(1, Math.round((Date.now() - startTime) / 60000));
 
-    const { result: res, error } = await submitInterview(
-      user.id,
-      selectedCategory.id,
-      profile?.target_role ?? '',
-      questions,
-      answers,
-      durationMin
-    );
+      const { result: res, error } = await submitInterview(
+        user.id,
+        selectedCategory.id,
+        profile?.target_role ?? '',
+        questions,
+        answers,
+        durationMin
+      );
 
-    if (error || !res) {
+      if (error || !res) {
+        toast({
+          title: 'Evaluation failed',
+          description: error ?? 'Could not evaluate your answers.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      setResult(res);
+      setPhase('results');
+      loadHistory();
+
       toast({
-        title: 'Evaluation failed',
-        description: error ?? 'Could not evaluate your answers.',
-        variant: 'destructive',
+        title: 'Interview complete!',
+        description: `You scored ${res.evaluation.overall}/100 and earned ${res.xpEarned} XP.`,
       });
+    } catch (err) {
+      setError('Failed to load data. Please try again.');
+    } finally {
       setSubmitting(false);
-      return;
     }
-
-    setResult(res);
-    setPhase('results');
-    setSubmitting(false);
-    loadHistory();
-
-    toast({
-      title: 'Interview complete!',
-      description: `You scored ${res.evaluation.overall}/100 and earned ${res.xpEarned} XP.`,
-    });
   };
 
   const handleReset = () => {

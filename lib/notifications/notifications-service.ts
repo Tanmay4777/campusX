@@ -27,11 +27,12 @@ export async function fetchUnreadCount(userId: string): Promise<number> {
   return count ?? 0;
 }
 
-export async function markNotificationRead(id: string): Promise<{ error: string | null }> {
+export async function markNotificationRead(id: string, userId: string): Promise<{ error: string | null }> {
   const { error } = await supabase
     .from('notifications')
     .update({ is_read: true })
-    .eq('id', id);
+    .eq('id', id)
+    .eq('user_id', userId);
   return { error: error?.message ?? null };
 }
 
@@ -44,11 +45,12 @@ export async function markAllNotificationsRead(userId: string): Promise<{ error:
   return { error: error?.message ?? null };
 }
 
-export async function deleteNotification(id: string): Promise<{ error: string | null }> {
+export async function deleteNotification(id: string, userId: string): Promise<{ error: string | null }> {
   const { error } = await supabase
     .from('notifications')
     .delete()
-    .eq('id', id);
+    .eq('id', id)
+    .eq('user_id', userId);
   return { error: error?.message ?? null };
 }
 
@@ -84,24 +86,11 @@ export async function updateNotificationPreferences(
   userId: string,
   prefs: Partial<NotificationPreference>
 ): Promise<{ error: string | null }> {
-  const { data: existing } = await supabase
+  const { id: _id, user_id: _uid, created_at: _ca, updated_at: _ua, ...safePrefs } = prefs;
+  const { error } = await supabase
     .from('notification_preferences')
-    .select('id')
-    .eq('user_id', userId)
-    .maybeSingle();
-
-  if (existing) {
-    const { error } = await supabase
-      .from('notification_preferences')
-      .update({ ...prefs, updated_at: new Date().toISOString() })
-      .eq('user_id', userId);
-    return { error: error?.message ?? null };
-  } else {
-    const { error } = await supabase
-      .from('notification_preferences')
-      .insert({ user_id: userId, ...prefs });
-    return { error: error?.message ?? null };
-  }
+    .upsert({ user_id: userId, ...safePrefs, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
+  return { error: error?.message ?? null };
 }
 
 export function subscribeToNotifications(
@@ -109,7 +98,7 @@ export function subscribeToNotifications(
   onNew: (notification: Notification) => void
 ) {
   const channel = supabase
-    .channel('notifications')
+    .channel(`notifications:${userId}`)
     .on(
       'postgres_changes',
       {

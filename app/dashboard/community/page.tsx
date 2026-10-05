@@ -35,6 +35,7 @@ export default function CommunityPage() {
   const { toast } = useToast();
   const [posts, setPosts] = useState<CommunityPostWithAuthor[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [category, setCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [showNewPost, setShowNewPost] = useState(false);
@@ -59,9 +60,14 @@ export default function CommunityPage() {
       return;
     }
     setLoading(true);
-    const data = await fetchPosts(category, searchQuery, user.id);
-    setPosts(data);
-    setLoading(false);
+    try {
+      const data = await fetchPosts(category, searchQuery, user.id);
+      setPosts(data);
+    } catch (err) {
+      setError('Failed to load data. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   }, [user, category, searchQuery]);
 
   useEffect(() => {
@@ -76,17 +82,22 @@ export default function CommunityPage() {
       return;
     }
     setSubmitting(true);
-    const tags = newTags.split(',').map((t) => t.trim()).filter(Boolean);
-    const { error } = await createPost(user.id, newTitle, newContent, newCategory, tags);
-    setSubmitting(false);
-    if (error) {
-      toast({ title: 'Failed to create post', description: error, variant: 'destructive' });
-      return;
+    try {
+      const tags = newTags.split(',').map((t) => t.trim()).filter(Boolean);
+      const { error } = await createPost(user.id, newTitle, newContent, newCategory, tags);
+      if (error) {
+        toast({ title: 'Failed to create post', description: error, variant: 'destructive' });
+        return;
+      }
+      toast({ title: 'Post created!' });
+      setNewTitle(''); setNewContent(''); setNewTags(''); setNewCategory('general');
+      setShowNewPost(false);
+      loadPosts();
+    } catch (err) {
+      setError('Failed to load data. Please try again.');
+    } finally {
+      setSubmitting(false);
     }
-    toast({ title: 'Post created!' });
-    setNewTitle(''); setNewContent(''); setNewTags(''); setNewCategory('general');
-    setShowNewPost(false);
-    loadPosts();
   };
 
   const handleLike = async (post: CommunityPostWithAuthor) => {
@@ -120,26 +131,36 @@ export default function CommunityPage() {
   const openPost = async (post: CommunityPostWithAuthor) => {
     setSelectedPost(post);
     setLoadingReplies(true);
-    const data = await fetchReplies(post.id);
-    setReplies(data);
-    setLoadingReplies(false);
+    try {
+      const data = await fetchReplies(post.id);
+      setReplies(data);
+    } catch (err) {
+      setError('Failed to load data. Please try again.');
+    } finally {
+      setLoadingReplies(false);
+    }
   };
 
   const handleReply = async () => {
     if (!user || !selectedPost || !replyContent.trim()) return;
     setSubmittingReply(true);
-    const { error } = await createReply(selectedPost.id, user.id, replyContent);
-    setSubmittingReply(false);
-    if (error) {
-      toast({ title: 'Failed to post reply', description: error, variant: 'destructive' });
-      return;
+    try {
+      const { error } = await createReply(selectedPost.id, user.id, replyContent);
+      if (error) {
+        toast({ title: 'Failed to post reply', description: error, variant: 'destructive' });
+        return;
+      }
+      setReplyContent('');
+      const data = await fetchReplies(selectedPost.id);
+      setReplies(data);
+      setPosts((prev) => prev.map((p) =>
+        p.id === selectedPost.id ? { ...p, reply_count: p.reply_count + 1 } : p
+      ));
+    } catch (err) {
+      setError('Failed to load data. Please try again.');
+    } finally {
+      setSubmittingReply(false);
     }
-    setReplyContent('');
-    const data = await fetchReplies(selectedPost.id);
-    setReplies(data);
-    setPosts((prev) => prev.map((p) =>
-      p.id === selectedPost.id ? { ...p, reply_count: p.reply_count + 1 } : p
-    ));
   };
 
   // ===== Post Detail View =====

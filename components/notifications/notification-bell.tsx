@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { Bell, Check, CheckCheck, Trash2, X } from 'lucide-react';
+import Link from 'next/link';
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -69,7 +70,8 @@ export function NotificationBell() {
   }, [loadNotifications, user, toast]);
 
   const handleMarkRead = async (id: string) => {
-    const { error } = await markNotificationRead(id);
+    if (!user) return;
+    const { error } = await markNotificationRead(id, user.id);
     if (error) return;
     setNotifications((prev) =>
       prev.map((n) => n.id === id ? { ...n, is_read: true } : n)
@@ -86,7 +88,8 @@ export function NotificationBell() {
   };
 
   const handleDelete = async (id: string) => {
-    const { error } = await deleteNotification(id);
+    if (!user) return;
+    const { error } = await deleteNotification(id, user.id);
     if (error) return;
     setNotifications((prev) => prev.filter((n) => n.id !== id));
     setUnreadCount((prev) => Math.max(0, prev - 1));
@@ -169,7 +172,7 @@ export function NotificationBell() {
         {notifications.length > 0 && (
           <div className="border-t p-2">
             <Button variant="ghost" size="sm" className="w-full text-xs" asChild>
-              <a href="/dashboard/notifications">View all</a>
+              <Link href="/dashboard/notifications">View all</Link>
             </Button>
           </div>
         )}

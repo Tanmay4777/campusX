@@ -60,6 +60,7 @@ export default function ProjectsPage() {
   const [skillFilter, setSkillFilter] = useState('All');
   const [search, setSearch] = useState('');
   const [starting, setStarting] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const loadProjects = useCallback(async () => {
     if (!user) {
@@ -67,9 +68,14 @@ export default function ProjectsPage() {
       setLoading(false);
       return;
     }
-    const data = await fetchAllProjects(user.id);
-    setProjects(data);
-    setLoading(false);
+    try {
+      const data = await fetchAllProjects(user.id);
+      setProjects(data);
+    } catch {
+      setError('Failed to load data. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   }, [user]);
 
   useEffect(() => {
@@ -95,24 +101,42 @@ export default function ProjectsPage() {
   const handleStart = async (projectId: string, title: string) => {
     if (!user) return;
     setStarting(projectId);
-    const { error } = await startProject(user.id, projectId);
-    if (error) {
-      toast({ title: 'Error', description: error, variant: 'destructive' });
-    } else {
-      toast({ title: 'Project started', description: `"${title}" is now in your workspace` });
-      setProjects((prev) =>
-        prev.map((p) =>
-          p.id === projectId ? { ...p, userStatus: 'in-progress', progressPct: 10 } : p
-        )
-      );
+    try {
+      const { error } = await startProject(user.id, projectId);
+      if (error) {
+        toast({ title: 'Error', description: error, variant: 'destructive' });
+      } else {
+        toast({ title: 'Project started', description: `"${title}" is now in your workspace` });
+        setProjects((prev) =>
+          prev.map((p) =>
+            p.id === projectId ? { ...p, userStatus: 'in-progress', progressPct: 10 } : p
+          )
+        );
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Failed to load data. Please try again.', variant: 'destructive' });
+    } finally {
+      setStarting(null);
     }
-    setStarting(null);
   };
 
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
         <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Projects</h1>
+        <Card>
+          <CardContent className="py-12 text-center text-muted-foreground">
+            {error}
+          </CardContent>
+        </Card>
       </div>
     );
   }

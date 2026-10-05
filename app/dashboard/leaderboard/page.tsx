@@ -36,19 +36,25 @@ export default function LeaderboardPage() {
   const [skillEntries, setSkillEntries] = useState<SkillLeaderboardEntry[]>([]);
   const [improvedEntries, setImprovedEntries] = useState<ImprovedUserEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const loadAll = useCallback(async () => {
     if (!user) { setLoading(false); return; }
     setLoading(true);
-    const [xp, skills, improved] = await Promise.all([
-      fetchXpLeaderboard(period, user.id),
-      fetchSkillLeaderboard(user.id),
-      fetchMostImproved(user.id),
-    ]);
-    setXpEntries(xp);
-    setSkillEntries(skills);
-    setImprovedEntries(improved);
-    setLoading(false);
+    try {
+      const [xp, skills, improved] = await Promise.all([
+        fetchXpLeaderboard(period, user.id),
+        fetchSkillLeaderboard(user.id),
+        fetchMostImproved(user.id),
+      ]);
+      setXpEntries(xp);
+      setSkillEntries(skills);
+      setImprovedEntries(improved);
+    } catch (err) {
+      setError('Failed to load data. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   }, [user, period]);
 
   useEffect(() => {

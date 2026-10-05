@@ -69,13 +69,19 @@ export default function RoadmapPage() {
   const [loading, setLoading] = useState(true);
   const [toggling, setToggling] = useState<string | null>(null);
   const [expandedPhases, setExpandedPhases] = useState<Set<string>>(new Set());
+  const [error, setError] = useState<string | null>(null);
 
   // Load all roadmaps on mount
   useEffect(() => {
     async function loadRoadmaps() {
-      const data = await fetchAllRoadmaps();
-      setRoadmaps(data);
-      setLoading(false);
+      try {
+        const data = await fetchAllRoadmaps();
+        setRoadmaps(data);
+      } catch {
+        setError('Failed to load data. Please try again.');
+      } finally {
+        setLoading(false);
+      }
     }
     loadRoadmaps();
   }, []);
@@ -89,27 +95,34 @@ export default function RoadmapPage() {
     if (!roleToLoad) return;
 
     setLoading(true);
-    fetchRoadmapForRole(roleToLoad, user.id).then((data) => {
-      setRoadmapData(data);
-      // Auto-expand all phases that have activity
-      if (data) {
-        const active = new Set<string>();
-        for (const phase of data.phases) {
-          if (phase.completedCount > 0 || phase.milestones.some((m) => m.userStatus === 'active')) {
-            active.add(phase.phase);
+    async function loadRole() {
+      try {
+        const data = await fetchRoadmapForRole(roleToLoad, user.id);
+        setRoadmapData(data);
+        // Auto-expand all phases that have activity
+        if (data) {
+          const active = new Set<string>();
+          for (const phase of data.phases) {
+            if (phase.completedCount > 0 || phase.milestones.some((m) => m.userStatus === 'active')) {
+              active.add(phase.phase);
+            }
           }
+          // Always expand the phase containing the active milestone
+          const activePhase = data.phases.find((p) => p.milestones.some((m) => m.userStatus === 'active'));
+          if (activePhase) active.add(activePhase.phase);
+          // If nothing active, expand the first phase
+          if (active.size === 0 && data.phases.length > 0) {
+            active.add(data.phases[0].phase);
+          }
+          setExpandedPhases(active);
         }
-        // Always expand the phase containing the active milestone
-        const activePhase = data.phases.find((p) => p.milestones.some((m) => m.userStatus === 'active'));
-        if (activePhase) active.add(activePhase.phase);
-        // If nothing active, expand the first phase
-        if (active.size === 0 && data.phases.length > 0) {
-          active.add(data.phases[0].phase);
-        }
-        setExpandedPhases(active);
+      } catch {
+        setError('Failed to load data. Please try again.');
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
-    });
+    }
+    loadRole();
   }, [user, roadmaps, selectedRole, profile?.target_role]);
 
   const togglePhase = (phase: string) => {
@@ -126,54 +139,61 @@ export default function RoadmapPage() {
       if (!user || milestone.userStatus === 'locked') return;
 
       setToggling(milestone.id);
-      const wasCompleted = milestone.userStatus === 'completed';
+      try {
+        const wasCompleted = milestone.userStatus === 'completed';
 
-      const { error } = await toggleMilestoneComplete(user.id, milestone.id, wasCompleted);
+        const { error } = await toggleMilestoneComplete(user.id, milestone.id, wasCompleted);
 
-      if (error) {
-        toast({
-          title: 'Error updating milestone',
-          description: error,
-          variant: 'destructive',
-        });
-        setToggling(null);
-        return;
-      }
-
-      // If completing (not uncompleting), award XP
-      if (!wasCompleted) {
-        const xpAmount = XP_RULES.LEARNING_ROADMAP_PHASE;
-        const result = await awardXp(user.id, xpAmount, {
-          type: 'learning',
-          title: `Milestone completed: ${milestone.title}`,
-          description: `${milestone.skill} • ${milestone.phase} phase`,
-        });
-
-        if (result.achievements.length > 0) {
-          notify(result.achievements);
+        if (error) {
+          toast({
+            title: 'Error updating milestone',
+            description: error,
+            variant: 'destructive',
+          });
+          return;
         }
 
-        await refreshProfile();
+        // If completing (not uncompleting), award XP
+        if (!wasCompleted) {
+          const xpAmount = XP_RULES.LEARNING_ROADMAP_PHASE;
+          const result = await awardXp(user.id, xpAmount, {
+            type: 'learning',
+            title: `Milestone completed: ${milestone.title}`,
+            description: `${milestone.skill} • ${milestone.phase} phase`,
+          });
 
+          if (result.achievements.length > 0) {
+            notify(result.achievements);
+          }
+
+          await refreshProfile();
+
+          toast({
+            title: 'Milestone completed!',
+            description: `+${xpAmount} XP earned for "${milestone.title}"`,
+          });
+        } else {
+          toast({
+            title: 'Milestone reopened',
+            description: `"${milestone.title}" marked as incomplete`,
+          });
+        }
+
+        // Refresh roadmap data
+        const roleToLoad = selectedRole ?? profile?.target_role ?? roadmaps[0]?.role;
+        if (roleToLoad) {
+          const data = await fetchRoadmapForRole(roleToLoad, user.id);
+          setRoadmapData(data);
+        }
+      } catch {
         toast({
-          title: 'Milestone completed!',
-          description: `+${xpAmount} XP earned for "${milestone.title}"`,
+          title: 'Error',
+          description: 'Failed to load data. Please try again.',
+          variant: 'destructive',
         });
-      } else {
-        toast({
-          title: 'Milestone reopened',
-          description: `"${milestone.title}" marked as incomplete`,
-        });
+      } finally {
+        setToggling(null);
       }
-
-      // Refresh roadmap data
-      const roleToLoad = selectedRole ?? profile?.target_role ?? roadmaps[0]?.role;
-      if (roleToLoad) {
-        const data = await fetchRoadmapForRole(roleToLoad, user.id);
-        setRoadmapData(data);
-      }
-
-      setToggling(null);
     },
     [user, selectedRole, profile?.target_role, roadmaps, notify, toast, refreshProfile]
   );
@@ -183,6 +203,25 @@ export default function RoadmapPage() {
     return (
       <div className="flex h-full items-center justify-center py-20">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  // ===== Error state =====
+  if (error && !roadmapData) {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Career Roadmap</h1>
+          <p className="mt-1 text-muted-foreground">
+            Your personalized path from fundamentals to placement-ready, tailored to your target role.
+          </p>
+        </div>
+        <Card>
+          <CardContent className="py-12 text-center text-muted-foreground">
+            {error}
+          </CardContent>
+        </Card>
       </div>
     );
   }

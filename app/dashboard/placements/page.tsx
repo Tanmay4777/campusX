@@ -48,6 +48,7 @@ export default function PlacementsPage() {
   const [activeTab, setActiveTab] = useState('jobs');
   const [jobs, setJobs] = useState<JobWithMatch[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [jobType, setJobType] = useState('all');
   const [sortBy, setSortBy] = useState('match');
@@ -64,15 +65,21 @@ export default function PlacementsPage() {
   const loadAll = useCallback(async () => {
     if (!user || !profile) { setLoading(false); return; }
     setLoading(true);
-    const [jobData, appData, annData] = await Promise.all([
-      fetchJobs(user.id, { year: profile.year, branch: profile.branch }, searchQuery, jobType, sortBy),
-      fetchMyApplications(user.id),
-      fetchAnnouncements(),
-    ]);
-    setJobs(jobData);
-    setApplications(appData);
-    setAnnouncements(annData);
-    setLoading(false);
+    setError(null);
+    try {
+      const [jobData, appData, annData] = await Promise.all([
+        fetchJobs(user.id, { year: profile.year, branch: profile.branch }, searchQuery, jobType, sortBy),
+        fetchMyApplications(user.id),
+        fetchAnnouncements(),
+      ]);
+      setJobs(jobData);
+      setApplications(appData);
+      setAnnouncements(annData);
+    } catch {
+      setError('Failed to load data. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   }, [user, profile, searchQuery, jobType, sortBy]);
 
   useEffect(() => {
@@ -102,20 +109,25 @@ export default function PlacementsPage() {
     }
 
     setSubmitting(true);
-    const { error } = await applyToJob(selectedJob.id, user.id, coverLetter, resumeUrl);
-    setSubmitting(false);
-    if (error) { toast({ title: 'Failed to apply', description: error, variant: 'destructive' }); return; }
-    toast({ title: 'Application submitted!' });
-    await createNotification(user.id, {
-      type: 'job',
-      title: `Applied to ${selectedJob.company}`,
-      message: `Your application for ${selectedJob.title} has been submitted successfully.`,
-      link: '/dashboard/placements',
-    });
-    setShowApplyForm(false);
-    setCoverLetter(''); setResumeUrl('');
-    loadAll();
-    setSelectedJob((prev) => prev ? { ...prev, application_status: 'applied' } : prev);
+    try {
+      const { error } = await applyToJob(selectedJob.id, user.id, coverLetter, resumeUrl);
+      if (error) { toast({ title: 'Failed to apply', description: error, variant: 'destructive' }); return; }
+      toast({ title: 'Application submitted!' });
+      await createNotification(user.id, {
+        type: 'job',
+        title: `Applied to ${selectedJob.company}`,
+        message: `Your application for ${selectedJob.title} has been submitted successfully.`,
+        link: '/dashboard/placements',
+      });
+      setShowApplyForm(false);
+      setCoverLetter(''); setResumeUrl('');
+      loadAll();
+      setSelectedJob((prev) => prev ? { ...prev, application_status: 'applied' } : prev);
+    } catch {
+      toast({ title: 'Failed to apply', description: 'Something went wrong. Please try again.', variant: 'destructive' });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleWithdraw = async (appId: string) => {
@@ -322,6 +334,15 @@ export default function PlacementsPage() {
           </Button>
         )}
       </div>
+
+      {error && (
+        <Card>
+          <CardContent className="flex items-center justify-between gap-3 p-4">
+            <p className="text-sm text-destructive">{error}</p>
+            <Button size="sm" variant="outline" onClick={() => loadAll()}>Try again</Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Announcements */}
       {announcements.length > 0 && (

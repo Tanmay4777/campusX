@@ -64,24 +64,30 @@ export default function ResumePage() {
   const [latestStored, setLatestStored] = useState<ResumeAnalysis | null>(null);
   const [history, setHistory] = useState<ResumeAnalysis[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     if (!user) {
       setLoading(false);
       return;
     }
-    const [roleData, latest, hist] = await Promise.all([
-      fetchTargetRoles(),
-      fetchLatestAnalysis(user.id),
-      fetchResumeHistory(user.id),
-    ]);
-    setRoles(roleData);
-    setLatestStored(latest);
-    setHistory(hist);
-    if (latest) {
-      setSelectedRole(latest.target_role);
+    try {
+      const [roleData, latest, hist] = await Promise.all([
+        fetchTargetRoles(),
+        fetchLatestAnalysis(user.id),
+        fetchResumeHistory(user.id),
+      ]);
+      setRoles(roleData);
+      setLatestStored(latest);
+      setHistory(hist);
+      if (latest) {
+        setSelectedRole(latest.target_role);
+      }
+    } catch (err) {
+      setError('Failed to load data. Please try again.');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, [user]);
 
   useEffect(() => {
@@ -115,24 +121,28 @@ export default function ResumePage() {
     setAnalyzing(true);
     setAnalysis(null);
 
-    const { result, error } = await analyzeResume(selectedFile, selectedRole, user.id);
+    try {
+      const { result, error } = await analyzeResume(selectedFile, selectedRole, user.id);
 
-    if (error) {
-      toast({ title: 'Analysis failed', description: error, variant: 'destructive' });
-    } else if (result) {
-      setAnalysis(result);
-      toast({
-        title: 'Resume analyzed',
-        description: `Match score: ${result.match_score}/100 — ${getScoreLabel(result.match_score)}`,
-      });
-      // Refresh history
-      const hist = await fetchResumeHistory(user.id);
-      setHistory(hist);
-      const latest = await fetchLatestAnalysis(user.id);
-      setLatestStored(latest);
+      if (error) {
+        toast({ title: 'Analysis failed', description: error, variant: 'destructive' });
+      } else if (result) {
+        setAnalysis(result);
+        toast({
+          title: 'Resume analyzed',
+          description: `Match score: ${result.match_score}/100 — ${getScoreLabel(result.match_score)}`,
+        });
+        // Refresh history
+        const hist = await fetchResumeHistory(user.id);
+        setHistory(hist);
+        const latest = await fetchLatestAnalysis(user.id);
+        setLatestStored(latest);
+      }
+    } catch (err) {
+      setError('Failed to load data. Please try again.');
+    } finally {
+      setAnalyzing(false);
     }
-
-    setAnalyzing(false);
   };
 
   const displayAnalysis: AnalysisResult | null = analysis ?? (latestStored ? {

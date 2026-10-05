@@ -59,7 +59,10 @@ export async function fetchPosts(
   }
 
   if (searchQuery.trim()) {
-    query = query.or(`title.ilike.%${searchQuery.trim()}%,content.ilike.%${searchQuery.trim}%`);
+    const sanitized = searchQuery.trim().replace(/[%_\\,()]/g, ' ');
+    if (sanitized) {
+      query = query.or(`title.ilike.%${sanitized}%,content.ilike.%${sanitized}%`);
+    }
   }
 
   const { data: posts, error } = await query;
