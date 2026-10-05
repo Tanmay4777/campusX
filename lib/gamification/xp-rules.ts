@@ -109,6 +109,7 @@ export function dsaXpForDifficulty(difficulty: string): number {
 }
 
 export function assessmentXp(correctCount: number, totalQuestions: number): number {
+  if (totalQuestions === 0) return 0;
   let xp = correctCount * XP_RULES.ASSESSMENT_CORRECT;
   const score = (correctCount / totalQuestions) * 100;
   if (score === 100) xp += XP_RULES.ASSESSMENT_BONUS_100;

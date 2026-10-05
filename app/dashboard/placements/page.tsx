@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import Link from 'next/link';
 import {
   Search, Briefcase, MapPin, IndianRupee, Clock, Bookmark, BookmarkCheck,
   CheckCircle2, XCircle, Loader2, Building2, Star, Target, TrendingUp,
@@ -37,7 +38,7 @@ const appStatusConfig: Record<string, { label: string; color: string }> = {
 };
 
 function initials(name: string): string {
-  return name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
+  return name.split(' ').filter(Boolean).map((n) => n[0]).join('').toUpperCase().slice(0, 2) || '?';
 }
 
 export default function PlacementsPage() {
@@ -131,7 +132,7 @@ export default function PlacementsPage() {
   };
 
   const handleWithdraw = async (appId: string) => {
-    if (!user) return;
+    if (!user || !appId) return;
     const { error } = await withdrawApplication(appId, user.id);
     if (error) { toast({ title: 'Failed to withdraw', description: error, variant: 'destructive' }); return; }
     toast({ title: 'Application withdrawn' });
@@ -268,7 +269,10 @@ export default function PlacementsPage() {
                     {appStatusConfig[selectedJob.application_status]?.label}
                   </Badge>
                   {selectedJob.application_status === 'applied' && (
-                    <Button variant="outline" size="sm" onClick={() => handleWithdraw(applications.find((a) => a.job_id === selectedJob.id)?.id ?? '')}>
+                    <Button variant="outline" size="sm" onClick={() => {
+                      const app = applications.find((a) => a.job_id === selectedJob.id);
+                      if (app) handleWithdraw(app.id);
+                    }}>
                       Withdraw
                     </Button>
                   )}
@@ -327,10 +331,10 @@ export default function PlacementsPage() {
         </div>
         {isAdmin && (
           <Button asChild>
-            <a href="/dashboard/placements/admin">
+            <Link href="/dashboard/placements/admin">
               <BarChart3 className="mr-2 h-4 w-4" />
               Admin Panel
-            </a>
+            </Link>
           </Button>
         )}
       </div>

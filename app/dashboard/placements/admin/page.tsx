@@ -332,17 +332,17 @@ export default function AdminPlacementsPage() {
               <div className="flex items-center gap-2">
                 <Zap className="h-4 w-4 text-primary" />
                 <span className="text-muted-foreground">Avg XP:</span>
-                <span className="font-medium">{analytics.avg_xp.toLocaleString()}</span>
+                <span className="font-medium">{(analytics.avg_xp ?? 0).toLocaleString()}</span>
               </div>
               <div className="flex items-center gap-2">
                 <Star className="h-4 w-4 text-accent" />
                 <span className="text-muted-foreground">Avg Level:</span>
-                <span className="font-medium">{analytics.avg_level}</span>
+                <span className="font-medium">{analytics.avg_level ?? 0}</span>
               </div>
               <div className="flex items-center gap-2">
                 <Flame className="h-4 w-4 text-warning" />
                 <span className="text-muted-foreground">Avg Streak:</span>
-                <span className="font-medium">{analytics.avg_streak}</span>
+                <span className="font-medium">{analytics.avg_streak ?? 0}</span>
               </div>
             </div>
           </CardContent>
@@ -397,7 +397,7 @@ export default function AdminPlacementsPage() {
                   <Input placeholder="Years (e.g. 2026,2027)" value={jobForm.eligibleYears} onChange={(e) => setJobForm({ ...jobForm, eligibleYears: e.target.value })} />
                   <Input placeholder="Branches (e.g. CSE,IT)" value={jobForm.eligibleBranches} onChange={(e) => setJobForm({ ...jobForm, eligibleBranches: e.target.value })} />
                 </div>
-                <Input type="datetime-local" value={jobForm.deadline} onChange={(e) => setJobForm({ ...jobForm, deadline: e.target.value ? new Date(e.target.value).toISOString() : '' })} />
+                <Input type="datetime-local" value={jobForm.deadline ? jobForm.deadline.slice(0, 16) : ''} onChange={(e) => setJobForm({ ...jobForm, deadline: e.target.value ? new Date(e.target.value).toISOString() : '' })} />
                 <div className="flex justify-end gap-2">
                   <Button variant="outline" onClick={() => setShowJobForm(false)}>Cancel</Button>
                   <Button onClick={handleCreateJob} disabled={submittingJob}>

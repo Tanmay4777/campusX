@@ -212,7 +212,14 @@ export async function awardXp(
     error: null,
   };
 
-  if (xpAmount <= 0) return { ...empty, error: null };
+  if (xpAmount <= 0) {
+    const { data: prof } = await supabase
+      .from('profiles')
+      .select('xp, level, streak')
+      .eq('id', userId)
+      .maybeSingle();
+    return { ...empty, newTotalXp: prof?.xp ?? 0, newLevel: prof?.level ?? 1, newStreak: prof?.streak ?? 0 };
+  }
 
   const { data: profile, error: profileErr } = await supabase
     .from('profiles')

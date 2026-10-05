@@ -86,6 +86,17 @@ export async function fetchProjectDetail(projectId: string, userId: string): Pro
 }
 
 export async function startProject(userId: string, projectId: string): Promise<{ error: string | null }> {
+  const { data: existing } = await supabase
+    .from('user_projects')
+    .select('status')
+    .eq('user_id', userId)
+    .eq('project_id', projectId)
+    .maybeSingle();
+
+  if (existing?.status === 'completed') {
+    return { error: 'Project already completed' };
+  }
+
   const { error } = await supabase
     .from('user_projects')
     .upsert(
@@ -121,6 +132,9 @@ export async function submitGitHubUrl(
   projectId: string,
   githubUrl: string
 ): Promise<{ error: string | null }> {
+  if (githubUrl && !isValidGitHubUrl(githubUrl)) {
+    return { error: 'Please enter a valid GitHub or GitLab URL' };
+  }
   const { error } = await supabase
     .from('user_projects')
     .update({ github_url: githubUrl })
@@ -135,6 +149,9 @@ export async function completeProject(
   projectId: string,
   githubUrl: string
 ): Promise<{ error: string | null }> {
+  if (!isValidGitHubUrl(githubUrl)) {
+    return { error: 'Please enter a valid GitHub or GitLab URL' };
+  }
   const { error } = await supabase
     .from('user_projects')
     .update({

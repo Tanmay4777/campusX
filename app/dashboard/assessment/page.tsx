@@ -289,6 +289,10 @@ export default function AssessmentPage() {
       description: `Scored ${score}% — ${correctCount}/${qs.length} correct`,
     });
 
+    if (awardResult.error) {
+      toast({ title: 'XP could not be awarded', description: awardResult.error, variant: 'destructive' });
+    }
+
     if (awardResult.achievements.length > 0) {
       notify(awardResult.achievements);
     }
@@ -387,7 +391,7 @@ export default function AssessmentPage() {
                     </span>
                     <span className="flex items-center gap-1">
                       <Zap className="h-3.5 w-3.5" />
-                      {item.questions.length * 50} XP
+                      {assessmentXp(item.questions.length, item.questions.length)} XP
                     </span>
                   </div>
                   <Button
@@ -592,7 +596,7 @@ export default function AssessmentPage() {
             <CardContent className="p-5 text-center">
               <TrendingUp className="mx-auto h-5 w-5 text-accent" />
               <div className="mt-2 text-2xl font-bold">
-                {Math.max(1, Math.ceil((result.score / 100) * 5))}/5
+                {Math.max(1, Math.ceil((result.score / 100) * (assessments.find(a => a.assessment.id === result.assessmentId)?.skill.max_level ?? 5)))}/{assessments.find(a => a.assessment.id === result.assessmentId)?.skill.max_level ?? 5}
               </div>
               <div className="text-xs text-muted-foreground">Proficiency Level</div>
             </CardContent>

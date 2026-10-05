@@ -282,7 +282,7 @@ export async function analyzeSkillGap(
     gaps.find((g) => g.skill === s && g.hasSkill && g.proficiency >= minProficiency)
   ).length;
   const matchScore = Math.round(
-    (reqMatched / Math.max(reqTotal, 1)) * 70 + (prefTotal > 0 ? (prefMatched / prefTotal) * 30 : 30)
+    (reqTotal > 0 ? (reqMatched / reqTotal) * 70 : 70) + (prefTotal > 0 ? (prefMatched / prefTotal) * 30 : 30)
   );
 
   const skillsToLearn = gaps

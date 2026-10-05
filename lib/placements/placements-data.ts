@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase/client';
+import { MAX_LEVEL } from '@/lib/gamification/xp-rules';
 
 export interface JobWithMatch {
   id: string;
@@ -214,6 +215,18 @@ export async function applyToJob(
   coverLetter: string,
   resumeUrl: string
 ): Promise<{ error: string | null }> {
+  const { data: existing } = await supabase
+    .from('job_applications')
+    .select('id')
+    .eq('job_id', jobId)
+    .eq('user_id', userId)
+    .neq('status', 'withdrawn')
+    .maybeSingle();
+
+  if (existing) {
+    return { error: 'You have already applied to this job' };
+  }
+
   const { error } = await supabase.from('job_applications').insert({
     job_id: jobId,
     user_id: userId,
@@ -526,7 +539,7 @@ export async function fetchStudentReadiness(): Promise<StudentReadiness[]> {
     const applications = appMap.get(s.id) ?? 0;
 
     const readinessScore = Math.min(100, Math.round(
-      (s.level / 10) * 25 +
+      (s.level / MAX_LEVEL) * 25 +
       Math.min(s.xp / 5000, 1) * 25 +
       Math.min(badges / 10, 1) * 15 +
       Math.min(projects / 5, 1) * 15 +
