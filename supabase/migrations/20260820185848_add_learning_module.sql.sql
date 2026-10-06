@@ -176,7 +176,7 @@ INSERT INTO learning_resources (topic_id, title, description, resource_type, url
   SELECT id, 'Sliding Window Technique', 'Article explaining the sliding window pattern with 5 examples.', 'article', 'https://www.geeksforgeeks.org/window-sliding-technique/', 15, 'GeeksforGeeks', 2 FROM learning_topics WHERE slug = 'dsa-arrays-strings';
 
 INSERT INTO learning_resources (topic_id, title, description, resource_type, url, duration_minutes, source, order_index)
-  SELECT id, 'Trees and Graphs — Data Structures', 'Complete tree and graph tutorial with visualizations.', 'video', 'https://www.youtube.com/watch?v=o6平等umsRU', 90, 'YouTube', 1 FROM learning_topics WHERE slug = 'dsa-trees-graphs';
+  SELECT id, 'Trees and Graphs — Data Structures', 'Complete tree and graph tutorial with visualizations.', 'video', 'https://www.youtube.com/watch?v=RBSGKlAvoiM', 90, 'YouTube', 1 FROM learning_topics WHERE slug = 'dsa-trees-graphs';
 INSERT INTO learning_resources (topic_id, title, description, resource_type, url, duration_minutes, source, order_index)
   SELECT id, 'Binary Tree Traversals', 'Article covering inorder, preorder, postorder, and level-order traversal.', 'article', 'https://www.programiz.com/dsa/tree-traversal', 12, 'Programiz', 2 FROM learning_topics WHERE slug = 'dsa-trees-graphs';
 INSERT INTO learning_resources (topic_id, title, description, resource_type, url, duration_minutes, source, order_index)
