@@ -27,6 +27,7 @@ export async function fetchMentors(
     .from('mentor_profiles')
     .select('*')
     .eq('is_available', true)
+    .neq('user_id', userId)
     .order('rating', { ascending: false })
     .limit(30);
 
@@ -116,6 +117,16 @@ export async function createMentorshipRequest(
   message: string,
   goals: string
 ): Promise<{ error: string | null }> {
+  const { data: selfMentor } = await supabase
+    .from('mentor_profiles')
+    .select('id')
+    .eq('user_id', studentId)
+    .maybeSingle();
+
+  if (selfMentor && selfMentor.id === mentorId) {
+    return { error: 'You cannot send a mentorship request to yourself' };
+  }
+
   const { data: existing } = await supabase
     .from('mentorship_requests')
     .select('id, status')
@@ -137,6 +148,13 @@ export async function createMentorshipRequest(
   if (mentor && mentor.current_mentees >= mentor.max_mentees) {
     return { error: 'This mentor has reached their maximum mentee capacity' };
   }
+
+  await supabase
+    .from('mentorship_requests')
+    .delete()
+    .eq('mentor_id', mentorId)
+    .eq('student_id', studentId)
+    .in('status', ['rejected', 'cancelled', 'completed']);
 
   const { error } = await supabase.from('mentorship_requests').insert({
     mentor_id: mentorId,
