@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
+import { getDocument } from "npm:pdfjs-dist@4.8.69/legacy/build/pdf.mjs";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -69,32 +70,30 @@ const SKILL_KEYWORDS: Record<string, string[]> = {
   "UI Design": ["ui design", "figma", "sketch", "adobe xd", "wireframe"],
 };
 
-function extractTextFromPDF(bytes: Uint8Array): string {
-  let text = "";
-  let i = 0;
-  while (i < bytes.length) {
-    if (bytes[i] === 0x28) {
-      let depth = 1;
-      const start = i + 1;
-      i++;
-      while (i < bytes.length && depth > 0) {
-        if (bytes[i] === 0x28) depth++;
-        else if (bytes[i] === 0x29) depth--;
-        if (depth > 0) i++;
-      }
-      const content = new TextDecoder("latin1").decode(bytes.slice(start, i));
-      if (content.includes("BT")) {
-        const textMatches = content.match(/\(([^)]*)\)/g);
-        if (textMatches) {
-          for (const m of textMatches) {
-            text += m.slice(1, -1) + " ";
-          }
-        }
-      }
+async function extractTextFromPDF(bytes: Uint8Array): Promise<string> {
+  const document = await getDocument({
+    data: bytes,
+    useWorkerFetch: false,
+    isEvalSupported: false,
+  }).promise;
+  const pages: string[] = [];
+
+  try {
+    for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
+      const page = await document.getPage(pageNumber);
+      const content = await page.getTextContent();
+      const pageText = content.items
+        .map((item: { str?: string }) => item.str ?? '')
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (pageText) pages.push(pageText);
     }
-    i++;
+  } finally {
+    await document.destroy();
   }
-  return text.replace(/[^\x20-\x7E\n]/g, " ").replace(/\s+/g, " ").trim();
+
+  return pages.join('\n').trim();
 }
 
 function extractSkills(text: string): string[] {
@@ -264,13 +263,50 @@ Deno.serve(async (req: Request) => {
 
     if (!file || !targetRole || !userId) {
       return new Response(
-        JSON.stringify({ error: "Missing required fields: file, target_role, user_id" }),
+        JSON.stringify({ error: "Please provide a PDF and target role." }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
+    if (file.size > 5 * 1024 * 1024) {
+      return new Response(
+        JSON.stringify({ error: "The resume must be smaller than 5 MB." }),
+        { status: 413, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const authorization = req.headers.get("Authorization");
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+    if (!authorization || !supabaseUrl || !anonKey) {
+      return new Response(
+        JSON.stringify({ error: "Please sign in again and retry." }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const authClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authorization } },
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const { data: authData } = await authClient.auth.getUser();
+    if (!authData.user || authData.user.id !== userId) {
+      return new Response(
+        JSON.stringify({ error: "Your session is no longer valid. Please sign in again." }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const fileBytes = new Uint8Array(await file.arrayBuffer());
-    const extractedText = extractTextFromPDF(fileBytes);
+    const pdfHeader = new TextDecoder().decode(fileBytes.slice(0, 5));
+    if (pdfHeader !== "%PDF-") {
+      return new Response(
+        JSON.stringify({ error: "The selected file is not a valid PDF." }),
+        { status: 415, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const extractedText = await extractTextFromPDF(fileBytes);
 
     if (extractedText.length < 20) {
       return new Response(
@@ -279,8 +315,8 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL") as string;
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") as string;
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!serviceRoleKey) throw new Error("Missing server configuration");
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
     const { data: roleData } = await supabase
@@ -289,7 +325,14 @@ Deno.serve(async (req: Request) => {
       .eq("role", targetRole)
       .maybeSingle();
 
-    const requiredSkills = roleData?.required_skills ?? [];
+    if (!roleData) {
+      return new Response(
+        JSON.stringify({ error: "Please choose a supported target role." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const requiredSkills = roleData.required_skills ?? [];
     const preferredSkills = roleData?.preferred_skills ?? [];
     const minProjects = roleData?.min_projects ?? 2;
 
@@ -325,7 +368,7 @@ Deno.serve(async (req: Request) => {
 
     const completedProjects = (userProjects ?? []).filter((p: { status: string }) => p.status === "completed").length;
 
-    await supabase.from("resume_analyses").insert({
+    const { error: saveError } = await supabase.from("resume_analyses").insert({
       user_id: userId,
       file_name: file.name,
       target_role: targetRole,
@@ -338,14 +381,21 @@ Deno.serve(async (req: Request) => {
       suggestions: result.suggestions,
     });
 
+    if (saveError) {
+      return new Response(
+        JSON.stringify({ error: "The analysis completed but could not be saved. Please try again." }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     return new Response(
       JSON.stringify({ ...result, completed_projects: completedProjects }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "An unexpected error occurred during resume analysis.";
+    console.error('Resume analysis failed', err);
     return new Response(
-      JSON.stringify({ error: message }),
+      JSON.stringify({ error: "We could not analyze this resume. Please try another PDF." }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

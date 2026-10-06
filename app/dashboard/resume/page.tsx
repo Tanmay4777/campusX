@@ -120,11 +120,13 @@ export default function ResumePage() {
 
     setAnalyzing(true);
     setAnalysis(null);
+    setError(null);
 
     try {
       const { result, error } = await analyzeResume(selectedFile, selectedRole, user.id);
 
       if (error) {
+        setError(error);
         toast({ title: 'Analysis failed', description: error, variant: 'destructive' });
       } else if (result) {
         setAnalysis(result);
@@ -139,7 +141,12 @@ export default function ResumePage() {
         setLatestStored(latest);
       }
     } catch (err) {
-      setError('Failed to load data. Please try again.');
+      setError('We could not reach the resume analysis service. Please try again.');
+      toast({
+        title: 'Analysis failed',
+        description: 'We could not reach the resume analysis service. Please try again.',
+        variant: 'destructive',
+      });
     } finally {
       setAnalyzing(false);
     }
@@ -172,6 +179,16 @@ export default function ResumePage() {
           Upload your resume, pick a target role, and get an instant analysis with a match score and improvement suggestions.
         </p>
       </div>
+
+      {error && (
+        <div className="flex items-start gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive" role="alert">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            <p className="font-medium">Resume analysis could not be completed</p>
+            <p className="mt-1 text-destructive/80">{error}</p>
+          </div>
+        </div>
+      )}
 
       {/* Upload + Role Selection */}
       <Card>
