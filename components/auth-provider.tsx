@@ -25,7 +25,9 @@ interface AuthContextValue {
     email: string;
     password: string;
   }) => Promise<{ error: string | null }>;
-  signOut: () => Promise<void>;
+  continueWithOAuth: (provider: 'github' | 'google') => Promise<{ error: string | null }>;
+  resetPassword: (email: string, redirectTo: string) => Promise<{ error: string | null }>;
+  signOut: () => Promise<void>; 
   refreshProfile: () => Promise<void>;
   updateProfile: (updates: Partial<Profile>) => Promise<{ error: string | null }>;
 }
@@ -135,7 +137,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (data.user) {
         // The trigger creates the profile row, but we update it with the
         // extra fields the trigger doesn't set.
-        await supabase
+        const { error: profileError } = await supabase
           .from('profiles')
           .update({
             college: params.college,
@@ -145,6 +147,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             full_name: params.fullName,
           })
           .eq('id', data.user.id);
+
+        if (profileError) {
+          return { error: 'Your account was created, but your profile could not be saved. Please try signing in again.' };
+        }
 
         await fetchProfile(data.user.id);
       }
@@ -175,6 +181,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { error: null };
     },
     [fetchProfile]
+  );
+
+  const continueWithOAuth = React.useCallback(
+    async (provider: 'github' | 'google'): Promise<{ error: string | null }> => {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: { redirectTo: `${window.location.origin}/login` },
+      });
+      return { error: error?.message ?? null };
+    },
+    []
+  );
+
+  const resetPassword = React.useCallback(
+    async (email: string, redirectTo: string): Promise<{ error: string | null }> => {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+      return { error: error?.message ?? null };
+    },
+    []
   );
 
   const signOut = React.useCallback(async () => {
@@ -216,6 +241,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     loading,
     signUp,
     signIn,
+    continueWithOAuth,
+    resetPassword,
     signOut,
     refreshProfile,
     updateProfile,
