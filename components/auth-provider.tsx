@@ -4,7 +4,11 @@ import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import type { Session, User } from '@supabase/supabase-js';
 
-import { supabase } from '@/lib/supabase/client';
+import {
+  supabase,
+  isSupabaseConfigured,
+  SUPABASE_NOT_CONFIGURED_MESSAGE,
+} from '@/lib/supabase/client';
 import type { Profile } from '@/lib/database.types';
 
 interface AuthContextValue {
@@ -116,6 +120,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       branch?: string;
       targetRole?: string;
     }): Promise<{ error: string | null }> => {
+      if (!isSupabaseConfigured) return { error: SUPABASE_NOT_CONFIGURED_MESSAGE };
       const { data, error } = await supabase.auth.signUp({
         email: params.email,
         password: params.password,
@@ -165,6 +170,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       email: string;
       password: string;
     }): Promise<{ error: string | null }> => {
+      if (!isSupabaseConfigured) return { error: SUPABASE_NOT_CONFIGURED_MESSAGE };
       const { data, error } = await supabase.auth.signInWithPassword({
         email: params.email,
         password: params.password,
@@ -185,6 +191,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const continueWithOAuth = React.useCallback(
     async (provider: 'github' | 'google'): Promise<{ error: string | null }> => {
+      if (!isSupabaseConfigured) return { error: SUPABASE_NOT_CONFIGURED_MESSAGE };
       const { error } = await supabase.auth.signInWithOAuth({
         provider,
         options: { redirectTo: `${window.location.origin}/login` },
@@ -196,6 +203,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const resetPassword = React.useCallback(
     async (email: string, redirectTo: string): Promise<{ error: string | null }> => {
+      if (!isSupabaseConfigured) return { error: SUPABASE_NOT_CONFIGURED_MESSAGE };
       const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
       return { error: error?.message ?? null };
     },
